@@ -1,5 +1,5 @@
 using System.Globalization;
-
+using Elements.Assets;
 using FrooxEngine;
 
 using LocaleResource = Elements.Assets.LocaleResource;
@@ -52,6 +52,7 @@ internal static class LocaleLoader {
 		}
 
 		foreach (var mod in ModLoader.Mods()) {
+			// GenerateDynamicModLocaleStrings(localeResource, mod);
 			if (!mod.IsLocalized) continue;
 			var modNamespace = mod.GetType().Namespace;
 			if (!mod.FinishedLoading || modNamespace == null) continue;
@@ -143,5 +144,16 @@ internal static class LocaleLoader {
 		return type.Assembly.GetManifestResourceNames().Any(s =>
 			s.StartsWith(prefix, StringComparison.Ordinal)
 			&& s.EndsWith(".json", StringComparison.Ordinal));
+	}
+
+	internal static void GenerateDynamicModLocaleStrings(LocaleResource localeResource, ResoniteModBase mod) {
+		string modKey = Path.GetFileNameWithoutExtension(mod.ModAssembly!.File);
+		Dictionary<string, string> messages = new();
+
+		LocaleData dynamic = new() {
+			LocaleCode = "en",
+			Messages = messages
+		};
+		localeResource.LoadDataAdditively(dynamic);
 	}
 }
