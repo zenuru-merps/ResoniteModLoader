@@ -2,6 +2,8 @@
 using FrooxEngine;
 using HarmonyLib;
 using System.Collections;
+using System.Collections.ObjectModel;
+using FrooxEngine.UIX;
 using ResoniteModLoader.Utility;
 
 namespace ResoniteModLoader;
@@ -10,6 +12,11 @@ namespace ResoniteModLoader;
 /// A utility class that aids in the creation of mod configuration feeds.
 /// </summary>
 public class ModConfigurationFeedBuilder {
+	private readonly ModConfiguration _config;
+	private readonly Dictionary<ModConfigurationKey, FieldInfo> _keyFields = new();
+
+	private static readonly Dictionary<ModConfiguration, ModConfigurationFeedBuilder> _cachedBuilders = new();
+
 	/// <summary>
 	/// A cache of <see cref="ModConfigurationFeedBuilder"/>, indexed by the <see cref="ModConfiguration"/> they belong to.
 	/// New builders are automatically added to this cache upon instantiation, so you should try to get a cached builder before creating a new one.
@@ -20,29 +27,28 @@ public class ModConfigurationFeedBuilder {
 	/// builder ??= new ModConfigurationFeedBuilder(config);
 	/// </code>
 	/// </example>
-	public static readonly Dictionary<ModConfiguration, ModConfigurationFeedBuilder> CachedBuilders = new();
+	public static ReadOnlyDictionary<ModConfiguration, ModConfigurationFeedBuilder> CachedBuilders =>
+		_cachedBuilders.AsReadOnly();
 
-	private readonly ModConfiguration Config;
+	private static bool HasAutoRegisterAttribute(FieldInfo field) =>
+		field.GetCustomAttribute<AutoRegisterConfigKeyAttribute>() is not null;
 
-	private readonly Dictionary<ModConfigurationKey, FieldInfo> KeyFields = new();
-
-	private static bool HasAutoRegisterAttribute(FieldInfo field) => field.GetCustomAttribute<AutoRegisterConfigKeyAttribute>() is not null;
-
-	private static bool TryGetAutoRegisterAttribute(FieldInfo field, out AutoRegisterConfigKeyAttribute attribute) {
+	private static bool TryGetAutoRegisterAttribute(FieldInfo field,
+		[MaybeNullWhen(false)] out AutoRegisterConfigKeyAttribute attribute) {
 		attribute = field.GetCustomAttribute<AutoRegisterConfigKeyAttribute>();
 		return attribute is not null;
 	}
 
 	private static bool HasRangeAttribute(FieldInfo field) => field.GetCustomAttribute<RangeAttribute>() is not null;
 
-	private static bool TryGetRangeAttribute(FieldInfo field, out RangeAttribute attribute) {
+	private static bool TryGetRangeAttribute(FieldInfo field, [MaybeNullWhen(false)] out RangeAttribute attribute) {
 		attribute = field.GetCustomAttribute<RangeAttribute>();
 		return attribute is not null;
 	}
 
 	private void AssertChildKey(ModConfigurationKey key) {
-		if (!Config.IsKeyDefined(key))
-			throw new InvalidOperationException($"Mod key ({key}) is not owned by {Config.Owner.Name}'s config");
+		if (!_config.IsKeyDefined(key))
+			throw new InvalidOperationException($"Mod key ({key}) is not owned by {_config.Owner.Name}'s config");
 	}
 
 	private static void AssertMatchingType<T>(ModConfigurationKey key) {
@@ -50,38 +56,23 @@ public class ModConfigurationFeedBuilder {
 			throw new InvalidOperationException($"Type of mod key ({key}) does not match field type {typeof(T)}");
 	}
 
-	private string GetKeyLabel(ModConfigurationKey key)
-		=> (key.InternalAccessOnly ? "[INTERNAL] " : "")
-		+ (PreferDescriptionLabels ? (key.Description ?? key.Name) : key.Name);
-
-	private string GetKeyDescription(ModConfigurationKey key)
-		=> PreferDescriptionLabels ? $"Key name: {key.Name}" : (key.Description ?? "(No description)");
-
-	/// <summary>
-	/// If <c>true</c>, configuration key descriptions will be used as the DataFeedItem's label if they exist.
-	/// If <c>false</c>, the configuration key name will be used as the label.
-	/// In both cases, the description will be the opposite field of the label.
-	/// </summary>
-	public bool PreferDescriptionLabels { get; set; } = false;
-
-	public string ItemKeyBase { get; set; } = string.Empty;
-
 	/// <summary>
 	/// Instantiates and caches a new builder for a specific <see cref="ModConfiguration"/>.
 	/// Check if a cached builder exists in <see cref="CachedBuilders"/> before creating a new one!
 	/// </summary>
 	/// <param name="config">The mod configuration this builder will generate items for</param>
 	public ModConfigurationFeedBuilder(ModConfiguration config) {
-		Config = config;
-		IEnumerable<FieldInfo> autoConfigKeys = config.Owner.GetType().GetDeclaredFields().Where(HasAutoRegisterAttribute);
+		_config = config;
+		IEnumerable<FieldInfo> autoConfigKeys =
+			config.Owner.GetType().GetDeclaredFields().Where(HasAutoRegisterAttribute);
 
 		foreach (FieldInfo field in autoConfigKeys) {
-			ModConfigurationKey key = (ModConfigurationKey)field.GetValue(field.IsStatic ? null : config.Owner);
+			ModConfigurationKey? key = (ModConfigurationKey)field.GetValue(field.IsStatic ? null : config.Owner);
 			if (key is null) continue; // dunno why this would happen
-			KeyFields[key] = field;
+			_keyFields[key] = field;
 		}
 
-		CachedBuilders[config] = this;
+		_cachedBuilders[config] = this;
 
 		if (Logger.IsDebugEnabled()) {
 			Logger.DebugInternal("--- ModConfigurationFeedBuilder instantiated ---");
@@ -99,18 +90,23 @@ public class ModConfigurationFeedBuilder {
 	/// </summary>
 	/// <typeparam name="T">The value type of the supplied key</typeparam>
 	/// <param name="key">The key to generate the item from</param>
+	/// <param name="path"><see cref="DataFeedItem.Path"/></param>
+	/// <param name="groupingParameters"><see cref="DataFeedItem.GroupingParameters"/></param>
 	/// <returns>A DataFeedSlider if possible, otherwise a DataFeedValueField.</returns>
 	/// <seealso cref="GenerateDataFeedItem"/>
-	public DataFeedValueField<T> GenerateDataFeedField<T>(ModConfigurationKey key, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null) {
+	public DataFeedValueField<T> GenerateDataFeedField<T>(ModConfigurationKey key, IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
 		AssertChildKey(key);
 		AssertMatchingType<T>(key);
-		string label = GetKeyLabel(key);
-		string description = GetKeyDescription(key);
-		if (typeof(T).IsAssignableFrom(typeof(float)) && KeyFields.TryGetValue(key, out FieldInfo field) && TryGetRangeAttribute(field, out RangeAttribute range) && range.Min is T min && range.Max is T max)
-			return FeedBuilder.Slider<T>(key.Name, label, description, (field) => field.SyncWithModConfiguration(Config, key), min, max, range.TextFormat, path, groupingParameters);
+		if (typeof(T).IsAssignableFrom(typeof(float)) && _keyFields.TryGetValue(key, out FieldInfo field) &&
+		    TryGetRangeAttribute(field, out RangeAttribute range) && range.Min is T min && range.Max is T max)
+			return FeedBuilder.Slider<T>(key.Name, key.Name, key.Description,
+				(field) => field.SyncWithModConfiguration(_config, key), min, max, range.TextFormat, path,
+				groupingParameters);
 		// If range attribute wasn't limited to floats, we could also make ClampedValueField's
 		else
-			return FeedBuilder.ValueField<T>(key.Name, label, description, (field) => field.SyncWithModConfiguration(Config, key), path, groupingParameters);
+			return FeedBuilder.ValueField<T>(key.Name, key.Name, key.Description,
+				(field) => field.SyncWithModConfiguration(_config, key), path, groupingParameters);
 	}
 
 	private static readonly MethodInfo GenerateDataFeedFieldMethod =
@@ -121,14 +117,16 @@ public class ModConfigurationFeedBuilder {
 	/// </summary>
 	/// <typeparam name="E">The enum type of the supplied key</typeparam>
 	/// <param name="key">The key to generate the item from</param>
+	/// <param name="path"><see cref="DataFeedItem.Path"/></param>
+	/// <param name="groupingParameters"><see cref="DataFeedItem.GroupingParameters"/></param>
 	/// <returns>A physical mango if it is opposite day.</returns>
 	/// <seealso cref="GenerateDataFeedItem"/>
-	public DataFeedEnum<E> GenerateDataFeedEnum<E>(ModConfigurationKey key, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null) where E : Enum {
+	public DataFeedEnum<E> GenerateDataFeedEnum<E>(ModConfigurationKey key, IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) where E : Enum {
 		AssertChildKey(key);
 		AssertMatchingType<E>(key);
-		string label = GetKeyLabel(key);
-		string description = GetKeyDescription(key);
-		return FeedBuilder.Enum<E>(key.Name, label, description, (field) => field.SyncWithModConfiguration(Config, key), path, groupingParameters);
+		return FeedBuilder.Enum<E>(key.Name, key.Name, key.Description,
+			(field) => field.SyncWithModConfiguration(_config, key), path, groupingParameters);
 	}
 
 	private static readonly MethodInfo GenerateDataFeedEnumMethod =
@@ -138,27 +136,81 @@ public class ModConfigurationFeedBuilder {
 	/// Generates the appropriate DataFeedItem for any config key type.
 	/// </summary>
 	/// <param name="key">The key to generate the item from</param>
+	/// <param name="path"><see cref="DataFeedItem.Path"/></param>
+	/// <param name="groupingParameters"><see cref="DataFeedItem.GroupingParameters"/></param>
 	/// <returns>Automatically picks the best item type for the config key type.</returns>
-	public DataFeedItem GenerateDataFeedItem(ModConfigurationKey key, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null) {
+	public DataFeedItem GenerateDataFeedItem(ModConfigurationKey key, IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
 		AssertChildKey(key);
-		string label = GetKeyLabel(key);
-		string description = GetKeyDescription(key);
 		Type valueType = key.ValueType();
 		if (valueType == typeof(dummy))
-			return FeedBuilder.Label(key.Name, label, description, path, groupingParameters);
+			// Compatibility with ResoniteModSettings conventions, A lot of mods use dummy keys as labels
+			return FeedBuilder.Label(key.Name, key.Description, path, groupingParameters);
 		else if (valueType == typeof(bool))
-			return FeedBuilder.Toggle(key.Name, label, description, (field) => field.SyncWithModConfiguration(Config, key), path, groupingParameters);
-		else if (valueType != typeof(string) && valueType != typeof(Uri) && typeof(IEnumerable).IsAssignableFrom(valueType))
-			return FeedBuilder.Category(key.Name, label, description, path, groupingParameters);
+			return FeedBuilder.Toggle(key.Name, key.Name, key.Description,
+				(field) => field.SyncWithModConfiguration(_config, key), path, groupingParameters);
+		else if (valueType != typeof(string) && valueType != typeof(Uri) &&
+		         typeof(IEnumerable).IsAssignableFrom(valueType))
+			return FeedBuilder.Category(key.Name, key.Name, key.Description, path, groupingParameters);
 		else if (valueType.InheritsFrom(typeof(Enum)))
-			return (DataFeedItem)GenerateDataFeedEnumMethod.MakeGenericMethod(key.ValueType()).Invoke(this, [key, path, groupingParameters]);
+			return (DataFeedItem)GenerateDataFeedEnumMethod.MakeGenericMethod(key.ValueType())
+				.Invoke(this, [key, path, groupingParameters]);
 		else
-			return (DataFeedItem)GenerateDataFeedFieldMethod.MakeGenericMethod(key.ValueType()).Invoke(this, [key, path, groupingParameters]);
+			return (DataFeedItem)GenerateDataFeedFieldMethod.MakeGenericMethod(key.ValueType())
+				.Invoke(this, [key, path, groupingParameters]);
+	}
+
+	private static readonly MethodInfo[] PrimEditorMethods =
+		typeof(PrimitiveMemberEditor).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
+	private static readonly MethodInfo PrimEditorEditingStarted = PrimEditorMethods.Single(m => m.Name == "EditingStarted");
+	private static readonly MethodInfo PrimEditorEditingChanged = PrimEditorMethods.Single(m => m.Name == "EditingChanged");
+	private static readonly MethodInfo PrimEditorEditingFinished = PrimEditorMethods.Single(m => m.Name == "EditingFinished");
+
+	private DataFeedValueField<string> GenerateDataFeedStringEditorInternal<T>(ModConfigurationKey key,
+		IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
+		
+
+		void Setup(IField<string> field) {
+				var textTarget = field.Parent as Text;
+				var parentSlot = textTarget.Slot;
+				var textEditorTarget = parentSlot.GetComponentInParents<TextEditor>(component => component.Text.Target == textTarget);
+				var valueField = parentSlot.AttachComponent<ValueField<T>>();
+				valueField.Value.SyncWithModConfiguration(_config, key, parentSlot);
+				var primEditor = parentSlot.AttachComponent<PrimitiveMemberEditor>();
+				var textEditorRef = primEditor.GetSyncMember("_textEditor") as SyncRef<TextEditor>;
+				var textDriveRef = primEditor.GetSyncMember("_textDrive") as FieldDrive<string>;
+				var targetRef = primEditor.GetSyncMember("_target") as RelayRef<IField>;
+				textEditorRef.Target = textEditorTarget;
+				textDriveRef.Target = field;
+				targetRef.Target = valueField.Value;
+
+				textEditorTarget.EditingStarted.Target =
+					PrimEditorEditingStarted.CreateDelegate<Action<TextEditor>>(primEditor);
+				textEditorTarget.EditingChanged.Target =
+					PrimEditorEditingChanged.CreateDelegate<Action<TextEditor>>(primEditor);
+				textEditorTarget.EditingFinished.Target =
+					PrimEditorEditingFinished.CreateDelegate<Action<TextEditor>>(primEditor);
+		}
+
+		return FeedBuilder.ValueField<string>(key.Name, key.Name, key.Description, Setup, path, groupingParameters);
+	}
+
+	private static readonly MethodInfo GenerateDataFeedStringEditorInternalMethod =
+		typeof(ModConfigurationFeedBuilder).GetMethod(nameof(GenerateDataFeedStringEditorInternal), BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+	public DataFeedValueField<string> GenerateDataFeedStringEditor(ModConfigurationKey key,
+		IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
+		AssertChildKey(key);
+
+		return (DataFeedValueField<string>)GenerateDataFeedStringEditorInternalMethod.MakeGenericMethod(key.ValueType())
+			.Invoke(this, [key, path, groupingParameters]);
 	}
 }
 
 /// <summary>
-/// Extentions that work with <see cref="ModConfigurationFeedBuilder"/>'s
+/// Extensions that work with <see cref="ModConfigurationFeedBuilder"/>'s
 /// </summary>
 public static class ModConfigurationFeedBuilderExtensions {
 	/// <summary>

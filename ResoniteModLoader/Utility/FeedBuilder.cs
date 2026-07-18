@@ -5,12 +5,12 @@ using FrooxEngine;
 namespace ResoniteModLoader.Utility;
 
 /// <summary>
-/// Utility class to easily generate DataFeedItem's.
+/// Utility class to easily generate <see cref="DataFeedItem"/>.
 /// </summary>
 public static class FeedBuilder {
-#pragma warning disable CS8625, CS1591, CA1715
-	public static T Item<T>(string itemKey, LocaleString label, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null) where T : DataFeedItem
-		=> Activator.CreateInstance<T>().WithBase(itemKey, path, groupingParameters, label, icon, setupVisible, setupEnabled, subitems, customEntity);
+#pragma warning disable CS8625, CS1591, CA1715, CS8601
+	public static T Item<T>(string itemKey, LocaleString label, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null) where T : DataFeedItem, new()
+		=> new T().WithBase(itemKey, path, groupingParameters, label, icon, setupVisible, setupEnabled, subitems, customEntity);
 
 	// CONFLICT AB
 	public static DataFeedCategory Category(string itemKey, LocaleString label, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null)
@@ -399,159 +399,160 @@ public static class FeedBuilder {
 
 	public static DataFeedSlider<T> Slider<T>(string itemKey, LocaleString label, LocaleString description, Action<IField<T>> value, T min, T max, string formatting, Action<IField<T>> setupReferenceValue, IReadOnlyList<string> path = null, IReadOnlyList<string> groupingParameters = null, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null)
 		=> Slider<T>(itemKey, label, description, path, groupingParameters, icon, setupVisible, setupEnabled, subitems, customEntity).WithSetup(value, min, max).WithSlider(setupReferenceValue).WithFormatting<DataFeedSlider<T>, T>(formatting);
-#pragma warning restore CS8625, CS1591, CA1715
+#pragma warning restore CS8625, CS1591, CA1715, CS8601
 }
 
 /// <summary>
-/// Extends all DataFeedItem's "Init" methods so they can be called in a chain (methods return original item).
+/// Extends all <see cref="DataFeedItem"/> "Init" methods so they can be called in a chain (methods return original item).
 /// </summary>
 public static class FeedBuilderExtensions {
 #pragma warning disable CS8625, CA1715
-	/// <summary>Mapped to InitBase</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitBase"/></summary>
 	public static I WithBase<I>(this I item, string itemKey, IReadOnlyList<string> path, IReadOnlyList<string> groupingParameters, LocaleString label, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null) where I : DataFeedItem {
 		item.InitBase(itemKey, path, groupingParameters, label, icon, setupVisible, setupEnabled, subitems, customEntity);
 		return item;
 	}
 
-	/// <summary>Mapped to InitBase</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitBase"/></summary>
 	public static I WithBase<I>(this I item, string itemKey, IReadOnlyList<string> path, IReadOnlyList<string> groupingParameters, LocaleString label, LocaleString description, Uri icon = null, Action<IField<bool>> setupVisible = null, Action<IField<bool>> setupEnabled = null, IReadOnlyList<DataFeedItem> subitems = null, object customEntity = null) where I : DataFeedItem {
 		item.InitBase(itemKey, path, groupingParameters, label, description, icon, setupVisible, setupEnabled, subitems, customEntity);
 		return item;
 	}
 
-	/// <summary>Mapped to InitVisible</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitVisible"/></summary>
 	public static I WithVisible<I>(this I item, Action<IField<bool>> setupVisible) where I : DataFeedItem {
 		item.InitVisible(setupVisible);
 		return item;
 	}
 
-	/// <summary>Mapped to InitEnabled</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitEnabled"/></summary>
 	public static I WithEnabled<I>(this I item, Action<IField<bool>> setupEnabled) where I : DataFeedItem {
 		item.InitEnabled(setupEnabled);
 		return item;
 	}
 
-	/// <summary>Mapped to InitDescription</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitDescription"/></summary>
 	public static I WithDescription<I>(this I item, LocaleString description) where I : DataFeedItem {
 		item.InitDescription(description);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSorting</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitSorting"/></summary>
 	public static I WithSorting<I>(this I item, long order) where I : DataFeedItem {
 		item.InitSorting(order);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSorting</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitSorting"/></summary>
 	public static I WithSorting<I>(this I item, Func<long> orderGetter) where I : DataFeedItem {
 		item.InitSorting(orderGetter);
 		return item;
 	}
 
-	/// <summary>Mapped to SetOverrideSubpath</summary>
+	/// <summary>Mapped to <see cref="DataFeedCategory.SetOverrideSubpath"/></summary>
 	public static DataFeedCategory WithOverrideSubpath(this DataFeedCategory item, params string[] subpath) {
 		item.SetOverrideSubpath(subpath);
 		return item;
 	}
 
-	/// <summary>Mapped to InitEntity</summary>
+	/// <summary>Mapped to <see cref="DataFeedEntity.InitEntity"/></summary>
 	public static DataFeedEntity<E> WithEntity<E>(this DataFeedEntity<E> item, E entity) {
 		item.InitEntity(entity);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSetupValue</summary>
+	/// <summary>Mapped to <see cref="DataFeedItem.InitSetupValue"/></summary>
 	public static I WithSetupValue<I, T>(this I item, Action<IField<T>> setup) where I : DataFeedValueElement<T> {
 		item.InitSetupValue(setup);
 		return item;
 	}
 
-	/// <summary>Mapped to InitFormatting</summary>
+	/// <summary>Mapped to <see cref="DataFeedValueElement.InitFormatting"/></summary>
 	public static I WithFormatting<I, T>(this I item, Action<IField<string>> setupFormatting) where I : DataFeedValueElement<T> {
 		item.InitFormatting(setupFormatting);
 		return item;
 	}
 
-	/// <summary>Mapped to InitFormatting</summary>
+	/// <summary>Mapped to <see cref="DataFeedValueElement.InitFormatting"/></summary>
 	public static I WithFormatting<I, T>(this I item, string formatting) where I : DataFeedValueElement<T> {
 		item.InitFormatting(formatting);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSetup</summary>
+	/// <summary>Mapped to <see cref="DataFeedOrderedItem.InitSetup"/></summary>
 	public static DataFeedOrderedItem<T> WithSetup<T>(this DataFeedOrderedItem<T> item, Action<IField<T>> orderValue, Action<IField<bool>> setupIsFirst, Action<IField<bool>> setupIsLast, Action<SyncDelegate<Action>> setupMoveUp, Action<SyncDelegate<Action>> setupMoveDown, Action<SyncDelegate<Action>> setupMakeFirst, Action<SyncDelegate<Action>> setupMakeLast, LocaleString moveUpLabel = default, LocaleString moveDownLabel = default, LocaleString makeFirstLabel = default, LocaleString makeLastLabel = default) where T : IComparable<T> {
 		item.InitSetup(orderValue, setupIsFirst, setupIsLast, setupMoveUp, setupMoveDown, setupMakeFirst, setupMakeLast, moveUpLabel, moveDownLabel, makeFirstLabel, makeLastLabel);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSetup</summary>
+	/// <summary>Mapped to <see cref="DataFeedClampedValueField.InitSetup"/></summary>
 	public static I WithSetup<I, T>(this I item, Action<IField<T>> value, Action<IField<T>> min, Action<IField<T>> max) where I : DataFeedClampedValueField<T> {
 		item.InitSetup(value, min, max);
 		return item;
 	}
-	/// <summary>Mapped to InitSetup</summary>
+	/// <summary>Mapped to <see cref="DataFeedClampedValueField.InitSetup"/></summary>
 	public static I WithSetup<I, T>(this I item, Action<IField<T>> value, T min, T max) where I : DataFeedClampedValueField<T> {
 		item.InitSetup(value, min, max);
 		return item;
 	}
 
-	/// <summary>Mapped to InitUnitConfiguration</summary>
+	/// <summary>Mapped to <see cref="DataFeedQuantityField.InitUnitConfiguration"/></summary>
 	public static DataFeedQuantityField<Q, T> WithUnitConfiguration<Q, T>(this DataFeedQuantityField<Q, T> item, UnitConfiguration defaultConfig, UnitConfiguration imperialConfig = null) where Q : unmanaged, IQuantity<Q> {
 		item.InitUnitConfiguration(defaultConfig, imperialConfig);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSlider</summary>
+	/// <summary>Mapped to <see cref="DataFeedSlider.InitSlider"/></summary>
 	public static DataFeedSlider<T> WithSlider<T>(this DataFeedSlider<T> item, Action<IField<T>> setupReferenceValue) {
 		item.InitSlider(setupReferenceValue);
 		return item;
 	}
 
-	/// <summary>Mapped to InitAction</summary>
+	/// <summary>Mapped to <see cref="DataFeedAction.InitAction"/></summary>
 	public static DataFeedAction WithAction(this DataFeedAction item, Action<SyncDelegate<Action>> setupAction) {
 		item.InitAction(setupAction);
 		return item;
 	}
 
-	/// <summary>Mapped to InitHighlight</summary>
+	/// <summary>Mapped to <see cref="DataFeedAction.InitHighlight"/></summary>
 	public static DataFeedAction WithHighlight(this DataFeedAction item, Action<IField<bool>> setupHighlight) {
 		item.InitHighlight(setupHighlight);
 		return item;
 	}
 
-	/// <summary>Mapped to InitAction</summary>
+	/// <summary>Mapped to <see cref="DataFeedValueAction.InitAction"/></summary>
 	public static DataFeedValueAction<T> WithAction<T>(this DataFeedValueAction<T> item, Action<SyncDelegate<Action<T>>> setupAction, Action<IField<T>> setupValue) {
 		item.InitAction(setupAction, setupValue);
 		return item;
 	}
 
-	/// <summary>Mapped to InitAction</summary>
+	/// <summary>Mapped to <see cref="DataFeedValueAction.InitAction"/></summary>
 	public static DataFeedValueAction<T> WithAction<T>(this DataFeedValueAction<T> item, Action<SyncDelegate<Action<T>>> setupAction, T value) {
 		item.InitAction(setupAction, value);
 		return item;
 	}
 
-	/// <summary>Mapped to InitHighlight</summary>
+	/// <summary>Mapped to <see cref="DataFeedValueAction.InitHighlight"/></summary>
 	public static DataFeedValueAction<T> WithHighlight<T>(this DataFeedValueAction<T> item, Action<IField<bool>> setupHighlight) {
 		item.InitHighlight(setupHighlight);
 		return item;
 	}
 
-	/// <summary>Mapped to InitSetupValue</summary>
+	/// <summary>Mapped to <see cref="DataFeedIndicator.InitSetupValue"/></summary>
 	public static DataFeedIndicator<T> WithSetupValue<T>(this DataFeedIndicator<T> item, Action<IField<T>> setup, string format = null) {
 		item.InitSetupValue(setup, format);
 		return item;
 	}
 
-	/// <summary>Mapped to InitResetAction</summary>
+	/// <summary>Mapped to <see cref="DataFeedResettableGroup.InitResetAction"/></summary>
 	public static DataFeedResettableGroup WithResetAction(this DataFeedResettableGroup item, Action<SyncDelegate<Action>> setupResetAction) {
 		item.InitResetAction(setupResetAction);
 		return item;
 	}
 
-	private static PropertyInfo SubItemsSetter = typeof(DataFeedItem).GetProperty(nameof(DataFeedItem.SubItems));
+	private static readonly PropertyInfo SubItemsSetter = typeof(DataFeedItem).GetProperty(nameof(DataFeedItem.SubItems))!;
 
+	/// <summary>Appends sub-items to a <see cref="DataFeedItem"/></summary>
 	public static I AddSubitems<I>(this I item, IReadOnlyList<DataFeedItem> subitems) where I : DataFeedItem {
 		if (item.SubItems is null)
 			SubItemsSetter.SetValue(item, subitems, null);
@@ -560,15 +561,19 @@ public static class FeedBuilderExtensions {
 		return item;
 	}
 
+	/// <summary>Appends sub-items to a <see cref="DataFeedItem"/></summary>
 	public static I AddSubitems<I>(this I item, params DataFeedItem[] subitems) where I : DataFeedItem => item.AddSubitems(subitems.AsReadOnly());
 
+	/// <summary>Replaces all sub-items of a <see cref="DataFeedItem"/></summary>
 	public static I ReplaceSubitems<I>(this I item, IReadOnlyList<DataFeedItem> subitems) where I : DataFeedItem {
 		SubItemsSetter.SetValue(item, subitems, null);
 		return item;
 	}
 
+	/// <summary>Replaces all sub-items of a <see cref="DataFeedItem"/></summary>
 	public static I ReplaceSubitems<I>(this I item, params DataFeedItem[] subitems) where I : DataFeedItem => item.ReplaceSubitems(subitems.AsReadOnly());
 
+	/// <summary>Removes all sub-items from a <see cref="DataFeedItem"/></summary>
 	public static I ClearSubitems<I>(this I item) where I : DataFeedItem {
 		SubItemsSetter.SetValue(item, null, null);
 		return item;

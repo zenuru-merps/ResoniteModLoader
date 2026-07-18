@@ -35,7 +35,7 @@ public class ModConfigurationValueSync<T> : Component {
 #pragma warning disable CS1591
 	protected override void OnAwake() {
 		base.OnAwake();
-		TargetField.SetupValueSetHook((IField<T> field, T value) => {
+		TargetField.SetupValueSetHook((field, value) => {
 			if (_mappedKey is not null) {
 				if (_mappedKey.Validate(value)) {
 					TargetField.Target.Value = value;
@@ -72,7 +72,7 @@ public class ModConfigurationValueSync<T> : Component {
 		if (string.IsNullOrEmpty(DefiningModAssembly.Value) || string.IsNullOrEmpty(ConfigurationKeyName.Value))
 			return false;
 		try {
-			_mappedMod = ModLoader.Mods().Single((mod) => Path.GetFileNameWithoutExtension(mod.ModAssembly?.File) == DefiningModAssembly.Value);
+			_mappedMod = ModLoader.FileNameLookupMap[DefiningModAssembly.Value];
 			_mappedConfig = _mappedMod?.GetConfiguration();
 			_mappedKey = _mappedConfig?.ConfigurationItemDefinitions.Single((key) => key.Name == ConfigurationKeyName.Value);
 			if (_mappedMod is null || _mappedConfig is null || _mappedKey is null)
@@ -88,7 +88,7 @@ public class ModConfigurationValueSync<T> : Component {
 	/// Call AFTER mapping has been confirmed to begin syncing the target field
 	/// </summary>
 	private void Register() {
-		ConfigValueChanged(_mappedConfig.GetValue(_mappedKey));
+		ConfigValueChanged(_mappedConfig!.GetValue(_mappedKey!));
 		_mappedKey!.OnChanged += ConfigValueChanged;
 		_definitionFound = true;
 	}
@@ -107,7 +107,7 @@ public class ModConfigurationValueSync<T> : Component {
 
 	private void ConfigValueChanged(object? value) {
 		if (TargetField.IsLinkValid)
-			TargetField.Target.Value = (T)value ?? default;
+			TargetField.Target.Value = (T?)value ?? default;
 	}
 
 	/// <summary>
@@ -122,7 +122,7 @@ public class ModConfigurationValueSync<T> : Component {
 		_mappedMod = config.Owner;
 		_mappedConfig = config;
 		_mappedKey = key;
-		DefiningModAssembly.Value = Path.GetFileNameWithoutExtension(config.Owner.ModAssembly!.File);
+		DefiningModAssembly.Value = config.Owner.FileName!;
 		ConfigurationKeyName.Value = key.Name;
 		Register();
 	}
@@ -139,9 +139,10 @@ public static class ModConfigurationValueSyncExtensions {
 	/// <param name="field">The field to bi-directionally sync</param>
 	/// <param name="config">The configuration the key belongs to</param>
 	/// <param name="key">Any key with a matching type</param>
+	/// <param name="slot">Slot to attach the component to. If unspecified, attach to same slot that field exists on.</param>
 	/// <returns>A new <see cref="ModConfigurationValueSync{T}"/> component that was attached to the same slot as the field.</returns>
 	/// <exception cref="InvalidOperationException">Thrown if key doesn't belong to config, or is of wrong type</exception>
-	public static ModConfigurationValueSync<T> SyncWithModConfiguration<T>(this IField<T> field, ModConfiguration config, ModConfigurationKey key) {
+	public static ModConfigurationValueSync<T> SyncWithModConfiguration<T>(this IField<T> field, ModConfiguration config, ModConfigurationKey key, Slot? slot = null) {
 		if (!typeof(T).IsEnginePrimitive() && !typeof(T).IsEnum)
 			throw new InvalidOperationException($"Type {typeof(T)} is not a valid component generic");
 		if (!config.IsKeyDefined(key))
@@ -150,8 +151,9 @@ public static class ModConfigurationValueSyncExtensions {
 			throw new InvalidOperationException($"Type of mod key ({key}) does not match field type {typeof(T)}");
 
 		Logger.DebugInternal($"Syncing field with [{key}] from {config.Owner.Name}");
-		ModConfigurationValueSync<T> driver = field.FindNearestParent<Slot>().AttachComponent<ModConfigurationValueSync<T>>();
-		driver.LoadConfigKey(config, key as ModConfigurationKey<T>);
+		slot ??= field.FindNearestParent<Slot>();
+		ModConfigurationValueSync<T> driver = slot.AttachComponent<ModConfigurationValueSync<T>>();
+		driver.LoadConfigKey(config, (key as ModConfigurationKey<T>)!);
 		driver.TargetField.Target = field;
 
 		return driver;

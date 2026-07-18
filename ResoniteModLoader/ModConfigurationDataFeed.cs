@@ -23,8 +23,9 @@ public class ModConfigurationDataFeed : Component, IDataFeedComponent, IDataFeed
 	public readonly Sync<bool> IncludeInternalConfigItems;
 #pragma warning restore CS8618, CA1051
 #pragma warning disable CS1591
-	public async IAsyncEnumerable<DataFeedItem> Enumerate(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys, string searchPhrase, object viewData) {
-		if (path.Count == 0 || !ModSettings.modAssemblyMapping.TryGetValue(path[0], out var mod)) {
+	public async IAsyncEnumerable<DataFeedItem> Enumerate(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys,
+		string searchPhrase, object viewData) {
+		if (path.Count == 0 || !ModLoader.FileNameLookupMap.TryGetValue(path[0], out var mod)) {
 			yield break;
 		}
 
@@ -33,7 +34,6 @@ public class ModConfigurationDataFeed : Component, IDataFeedComponent, IDataFeed
 	}
 
 	private DataFeedGroup GenerateModInfoPanel(ResoniteModBase mod) {
-
 		string groupingBase = "ModSettings.ModInfo";
 		string[] modGrouping = [groupingBase];
 
@@ -65,8 +65,7 @@ public class ModConfigurationDataFeed : Component, IDataFeedComponent, IDataFeed
 	}
 
 	private DataFeedGroup GenerateModConfigPanel(ResoniteModBase mod) {
-
-		string groupingBase = $"ModSettings.ModConfig";
+		string groupingBase = "ModSettings.ModConfig";
 		string[] modGrouping = [groupingBase];
 
 		var group = FeedBuilder.Group(groupingBase, "Settings.ModSettings.ModConfig".AsLocaleKey());
@@ -85,23 +84,26 @@ public class ModConfigurationDataFeed : Component, IDataFeedComponent, IDataFeed
 
 			if (modConfig.ConfigurationItemDefinitions.All(key => key.InternalAccessOnly)) {
 				group.AddSubitems(
-					FeedBuilder.Label(groupingBase + ".NoConfigs", "Settings.ModSettings.NoConfigs".AsLocaleKey(), groupingParameters: modGrouping)
+					FeedBuilder.Label(groupingBase + ".NoConfigs", "Settings.ModSettings.NoConfigs".AsLocaleKey(),
+							groupingParameters: modGrouping)
 						.WithVisible(field => field.DriveInverted(IncludeInternalConfigItems))
 				);
 			}
 		}
-		else
-		{
+		else {
 			group.AddSubitems(
-				FeedBuilder.Label(groupingBase + ".NoConfigs", "Settings.ModSettings.NoConfigs".AsLocaleKey(), groupingParameters: modGrouping)
+				FeedBuilder.Label(groupingBase + ".NoConfigs", "Settings.ModSettings.NoConfigs".AsLocaleKey(),
+					groupingParameters: modGrouping)
 			);
 		}
 
 		return group;
 	}
 
-	public void ListenToUpdates(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys, string searchPhrase, DataFeedUpdateHandler handler, object viewData) {
-		Logger.DebugInternal($"ModConfigurationDataFeed.ListenToUpdates called, handler: {handler}\n{Environment.StackTrace}");
+	public void ListenToUpdates(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys, string searchPhrase,
+		DataFeedUpdateHandler handler, object viewData) {
+		Logger.DebugInternal(
+			$"ModConfigurationDataFeed.ListenToUpdates called, handler: {handler}\n{Environment.StackTrace}");
 	}
 
 	public LocaleString PathSegmentName(string segment, int depth) => segment;
@@ -111,11 +113,14 @@ public class ModConfigurationDataFeed : Component, IDataFeedComponent, IDataFeed
 		return this;
 	}
 
-	public void UnregisterListener(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys, string searchPhrase, DataFeedUpdateHandler handler) {
-		Logger.DebugInternal($"ModConfigurationDataFeed.UnregisterListener called, handler: {handler}\n{Environment.StackTrace}");
+	public void UnregisterListener(IReadOnlyList<string> path, IReadOnlyList<string> groupKeys, string searchPhrase,
+		DataFeedUpdateHandler handler) {
+		Logger.DebugInternal(
+			$"ModConfigurationDataFeed.UnregisterListener called, handler: {handler}\n{Environment.StackTrace}");
 	}
 
 	public void UnregisterViewData(object data) {
-		Logger.DebugInternal($"ModConfigurationDataFeed.UnregisterViewData called, object: {data}\n{Environment.StackTrace}");
+		Logger.DebugInternal(
+			$"ModConfigurationDataFeed.UnregisterViewData called, object: {data}\n{Environment.StackTrace}");
 	}
 }

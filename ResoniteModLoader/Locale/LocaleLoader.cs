@@ -52,7 +52,7 @@ internal static class LocaleLoader {
 		}
 
 		foreach (var mod in ModLoader.Mods()) {
-			// GenerateDynamicModLocaleStrings(localeResource, mod);
+			GenerateDynamicModLocaleStrings(localeResource, mod);
 			if (!mod.IsLocalized) continue;
 			var modNamespace = mod.GetType().Namespace;
 			if (!mod.FinishedLoading || modNamespace == null) continue;
@@ -146,14 +146,20 @@ internal static class LocaleLoader {
 			&& s.EndsWith(".json", StringComparison.Ordinal));
 	}
 
-	internal static void GenerateDynamicModLocaleStrings(LocaleResource localeResource, ResoniteModBase mod) {
-		string modKey = Path.GetFileNameWithoutExtension(mod.ModAssembly!.File);
-		Dictionary<string, string> messages = new();
+	private static readonly List<string> emptyList = new();
+
+	private static void GenerateDynamicModLocaleStrings(LocaleResource localeResource, ResoniteModBase mod) {
+		string modKey = mod.FileName!;
+		Dictionary<string, string> messages = new() {
+			[$"Settings.ModSettings.{modKey}.Breadcrumb"] = mod.Name
+		};
 
 		LocaleData dynamic = new() {
 			LocaleCode = "en",
+			Authors = emptyList, // annoying but CTD without this
 			Messages = messages
 		};
+
 		localeResource.LoadDataAdditively(dynamic);
 	}
 }

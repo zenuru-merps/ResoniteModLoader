@@ -11,6 +11,6 @@ internal sealed class HarmonyWorker {
 		Harmony harmony = new("com.resonitemodloader.ResoniteModLoader");
 		ModLoader.LoadMods();
 		ModConfiguration.RegisterShutdownHook(harmony);
-		SettingsDataFeedPatcher.RunPatch(harmony);
+		SettingsRelatedPatches.RunPatches(harmony);
 	}
 }
