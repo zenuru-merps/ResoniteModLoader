@@ -10,7 +10,7 @@
 		<AssemblyTitle>ResoniteModLoader</AssemblyTitle>
 		<AssemblyProduct>$(AssemblyTitle)</AssemblyProduct>
 		<PackageId>$(AssemblyTitle)</PackageId>
-		<Version>5.0.1</Version>
+		<Version>5.0.2</Version>
 		<FileVersion>$(Version)</FileVersion>
 		<AssemblyVersion>$(Version)</AssemblyVersion>
 		<Authors>resonite-modding-group, DeltaWolf</Authors>
@@ -42,32 +42,18 @@ public sealed partial class ModLoader {
 		</ItemGroup>
 	</Target>
 
+	<ItemDefinitionGroup>
+		<Reference Private="False"/>
+	</ItemDefinitionGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Lib.Harmony" Version="2.4.2" />
-		<Reference Include="FrooxEngine">
-			<HintPath>$(ResonitePath)FrooxEngine.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="Elements.Assets">
-			<HintPath>$(ResonitePath)Elements.Assets.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="Elements.Core">
-			<HintPath>$(ResonitePath)Elements.Core.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="Elements.Data">
-			<HintPath>$(ResonitePath)Elements.Data.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="Elements.Quantity">
-			<HintPath>$(ResonitePath)Elements.Quantity.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
-		<Reference Include="Newtonsoft.Json">
-			<HintPath>$(ResonitePath)Newtonsoft.Json.dll</HintPath>
-			<Private>False</Private>
-		</Reference>
+		<Reference Include="FrooxEngine" HintPath="$(ResonitePath)FrooxEngine.dll" />
+		<Reference Include="Elements.Assets" HintPath="$(ResonitePath)Elements.Assets.dll" />
+		<Reference Include="Elements.Core" HintPath="$(ResonitePath)Elements.Core.dll" />
+		<Reference Include="Elements.Data" HintPath="$(ResonitePath)Elements.Data.dll" />
+		<Reference Include="Elements.Quantity" HintPath="$(ResonitePath)Elements.Quantity.dll" />
+		<Reference Include="Newtonsoft.Json" HintPath="$(ResonitePath)Newtonsoft.Json.dll" />
 	</ItemGroup>
 
 	<ItemGroup>
