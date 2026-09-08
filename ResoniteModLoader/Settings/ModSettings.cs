@@ -23,7 +23,7 @@ public sealed class ModSettings : SettingComponent<ModSettings> {
 		base.OnStart();
 		Persistent = false;
 		_collectionData ??= new();
-		var data = new CollectionData(ModToFeedItem, true);
+		var data = new CollectionData(ModToFeedItem, false);
 		for (int i = 0; i < ModIndex.Length; i++) {
 			var mod = ModIndex[i];
 			InitInfo.syncMemberNameToIndex[mod] = 1000 + i;
@@ -81,7 +81,7 @@ public sealed class ModSettings : SettingComponent<ModSettings> {
 				return false;
 			}
 		}
-		return true;
+		return item is not DataFeedLabel;
 	}
 
 	private DataFeedGroup GenerateModInfoPanel(ResoniteModBase mod) {
@@ -127,17 +127,17 @@ public sealed class ModSettings : SettingComponent<ModSettings> {
 			foreach (ModConfigurationKey key in modConfig.ConfigurationItemDefinitions) {
 				var item = configBuilder.GenerateDataFeedItem(key, groupingParameters: modGrouping);
 
-				if (ShouldUseFallback(item)) {
-					try {
-						item = configBuilder.GenerateDataFeedStringEditor(key, groupingParameters: modGrouping);
-					}
-					catch (Exception e) {
-						item =  FeedBuilder.Label(key.Name,
-							$"Exception generating member editor for \"{key.Name}\": {e.Message}", colorX.Red,
-							groupingParameters: modGrouping);
-						Logger.ErrorInternal(e);
-					}
-				}
+				// if (ShouldUseFallback(item)) {
+				// 	try {
+				// 		item = configBuilder.GenerateDataFeedFallbackEditor(key, groupingParameters: modGrouping);
+				// 	}
+				// 	catch (Exception e) {
+				// 		item =  FeedBuilder.Label(key.Name,
+				// 			$"Exception generating member editor for \"{key.Name}\": {e.Message}", colorX.Red,
+				// 			groupingParameters: modGrouping);
+				// 		Logger.ErrorInternal(e);
+				// 	}
+				// }
 
 				if (key.InternalAccessOnly) {
 					item.InitVisible(field => field.DriveFrom(ShowInternal));
@@ -207,9 +207,6 @@ public sealed class ModSettings : SettingComponent<ModSettings> {
 		foreach (var (modKey, mod) in ModLoader.FileNameLookupMap) {
 			var link = FeedBuilder.Category(modKey, mod.Name, groupingParameters: [nameof(ModList)]);
 			link.SetOverrideSubpath("ModSettings." + modKey);
-			// var link = FeedBuilder.ValueAction<string>(modKey, mod.Name, action => action.Target = OpenModConfig,
-			// modKey, groupingParameters: [nameof(ModList)]);
-			// .WithDescription($"Settings.ModSettings.ModList.{modKey}".AsLocaleKey()); // The default ValueAction template doesn't use the description
 			if (mod.GetConfiguration() is { } config) {
 				if (config.ConfigurationItemDefinitions.All(key => key.InternalAccessOnly)) {
 					link.InitVisible(field =>

@@ -1,5 +1,6 @@
 ﻿using FrooxEngine;
 using HarmonyLib;
+using ResoniteModLoader.Utility;
 
 namespace ResoniteModLoader;
 
@@ -8,7 +9,10 @@ static class SettingsRelatedPatches {
 		var patchMethod =
 			AccessTools.DeclaredMethod(typeof(SettingsRelatedPatches), nameof(InjectModGrid));
 		var targetMethod = AccessTools.DeclaredMethod(typeof(SettingsDataFeed), "GenerateItem",
-			[typeof(SettingsDataFeed.ActionIdentity), typeof(SettingPropertyAttribute), typeof(IReadOnlyList<string>), typeof(IReadOnlyList<string>)]);
+		[
+			typeof(SettingsDataFeed.ActionIdentity), typeof(SettingPropertyAttribute), typeof(IReadOnlyList<string>),
+			typeof(IReadOnlyList<string>)
+		]);
 		var patched = harmony.Patch(targetMethod, prefix: new HarmonyMethod(patchMethod));
 		Logger.DebugInternal("SettingsDataFeedPatcher patch 1 success " + patched);
 
@@ -19,8 +23,10 @@ static class SettingsRelatedPatches {
 		Logger.DebugInternal("SettingsDataFeedPatcher patch 2 success " + patched);
 	}
 
-	internal static bool InjectModGrid(ref DataFeedItem __result, SettingsDataFeed.ActionIdentity identity, IReadOnlyList<string> path, IReadOnlyList<string> grouping) {
-		if (identity.settingType == typeof(ModSettings) && identity.MemberName == nameof(ModSettings.ModList)) {
+	internal static bool InjectModGrid(ref DataFeedItem __result, SettingsDataFeed.ActionIdentity identity,
+		IReadOnlyList<string> path, IReadOnlyList<string> grouping) {
+		// Userspace refresh stage check prevents leaking mod list in worldspace
+		if (Util.InUserspaceContext() && identity.settingType == typeof(ModSettings) && identity.MemberName == nameof(ModSettings.ModList)) {
 			var activeSetting = Settings.GetActiveSetting<ModSettings>();
 			__result = activeSetting!.GenerateModGrid(path, grouping);
 			return false;
@@ -37,7 +43,6 @@ static class SettingsRelatedPatches {
 
 		return true;
 	}
-
 
 
 	internal static IAsyncEnumerable<DataFeedItem> GetSubcategoryItems(object setting, string subcategory) =>

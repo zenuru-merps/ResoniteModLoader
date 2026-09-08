@@ -52,7 +52,10 @@ internal static class LocaleLoader {
 		}
 
 		foreach (var mod in ModLoader.Mods()) {
+			#if DEBUG
+			// Keeping this disabled after correspondence with Delta about potential side-effects
 			GenerateDynamicModLocaleStrings(localeResource, mod);
+			#endif
 			if (!mod.IsLocalized) continue;
 			var modNamespace = mod.GetType().Namespace;
 			if (!mod.FinishedLoading || modNamespace == null) continue;
@@ -148,6 +151,7 @@ internal static class LocaleLoader {
 
 	private static readonly List<string> emptyList = new();
 
+	// Technically this could be used to leak installed mods via brute force
 	private static void GenerateDynamicModLocaleStrings(LocaleResource localeResource, ResoniteModBase mod) {
 		string modKey = mod.FileName!;
 		Dictionary<string, string> messages = new() {
@@ -156,7 +160,7 @@ internal static class LocaleLoader {
 
 		LocaleData dynamic = new() {
 			LocaleCode = "en",
-			Authors = emptyList, // annoying but CTD without this
+			Authors = emptyList, // annoying but crashes without this
 			Messages = messages
 		};
 

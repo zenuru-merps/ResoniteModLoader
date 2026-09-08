@@ -3,6 +3,7 @@ using FrooxEngine;
 using HarmonyLib;
 using System.Collections;
 using System.Collections.ObjectModel;
+using Elements.Data;
 using FrooxEngine.UIX;
 using ResoniteModLoader.Utility;
 
@@ -11,6 +12,7 @@ namespace ResoniteModLoader;
 /// <summary>
 /// A utility class that aids in the creation of mod configuration feeds.
 /// </summary>
+[DataModelType]
 public class ModConfigurationFeedBuilder {
 	private readonly ModConfiguration _config;
 	private readonly Dictionary<ModConfigurationKey, FieldInfo> _keyFields = new();
@@ -162,51 +164,121 @@ public class ModConfigurationFeedBuilder {
 
 	private static readonly MethodInfo[] PrimEditorMethods =
 		typeof(PrimitiveMemberEditor).GetMethods(BindingFlags.Instance | BindingFlags.NonPublic);
-	private static readonly MethodInfo PrimEditorEditingStarted = PrimEditorMethods.Single(m => m.Name == "EditingStarted");
-	private static readonly MethodInfo PrimEditorEditingChanged = PrimEditorMethods.Single(m => m.Name == "EditingChanged");
-	private static readonly MethodInfo PrimEditorEditingFinished = PrimEditorMethods.Single(m => m.Name == "EditingFinished");
+
+	private static readonly MethodInfo PrimEditorEditingStarted =
+		PrimEditorMethods.Single(m => m.Name == "EditingStarted");
+
+	private static readonly MethodInfo PrimEditorEditingChanged =
+		PrimEditorMethods.Single(m => m.Name == "EditingChanged");
+
+	private static readonly MethodInfo PrimEditorEditingFinished =
+		PrimEditorMethods.Single(m => m.Name == "EditingFinished");
 
 	private DataFeedValueField<string> GenerateDataFeedStringEditorInternal<T>(ModConfigurationKey key,
 		IReadOnlyList<string>? path = null,
 		IReadOnlyList<string>? groupingParameters = null) {
-		
 
 		void Setup(IField<string> field) {
-				var textTarget = field.Parent as Text;
-				var parentSlot = textTarget.Slot;
-				var textEditorTarget = parentSlot.GetComponentInParents<TextEditor>(component => component.Text.Target == textTarget);
-				var valueField = parentSlot.AttachComponent<ValueField<T>>();
-				valueField.Value.SyncWithModConfiguration(_config, key, parentSlot);
-				var primEditor = parentSlot.AttachComponent<PrimitiveMemberEditor>();
-				var textEditorRef = primEditor.GetSyncMember("_textEditor") as SyncRef<TextEditor>;
-				var textDriveRef = primEditor.GetSyncMember("_textDrive") as FieldDrive<string>;
-				var targetRef = primEditor.GetSyncMember("_target") as RelayRef<IField>;
-				textEditorRef.Target = textEditorTarget;
-				textDriveRef.Target = field;
-				targetRef.Target = valueField.Value;
+			var textTarget = field.Parent as Text;
+			var parentSlot = textTarget.Slot;
+			var textEditorTarget =
+				parentSlot.GetComponentInParents<TextEditor>(component => component.Text.Target == textTarget);
+			var valueField = parentSlot.AttachComponent<ValueField<T>>();
+			valueField.Value.SyncWithModConfiguration(_config, key, parentSlot);
+			var primEditor = parentSlot.AttachComponent<PrimitiveMemberEditor>();
+			var textEditorRef = primEditor.GetSyncMember("_textEditor") as SyncRef<TextEditor>;
+			var textDriveRef = primEditor.GetSyncMember("_textDrive") as FieldDrive<string>;
+			var targetRef = primEditor.GetSyncMember("_target") as RelayRef<IField>;
+			textEditorRef.Target = textEditorTarget;
+			textDriveRef.Target = field;
+			targetRef.Target = valueField.Value;
 
-				textEditorTarget.EditingStarted.Target =
-					PrimEditorEditingStarted.CreateDelegate<Action<TextEditor>>(primEditor);
-				textEditorTarget.EditingChanged.Target =
-					PrimEditorEditingChanged.CreateDelegate<Action<TextEditor>>(primEditor);
-				textEditorTarget.EditingFinished.Target =
-					PrimEditorEditingFinished.CreateDelegate<Action<TextEditor>>(primEditor);
+			textEditorTarget.EditingStarted.Target =
+				PrimEditorEditingStarted.CreateDelegate<Action<TextEditor>>(primEditor);
+			textEditorTarget.EditingChanged.Target =
+				PrimEditorEditingChanged.CreateDelegate<Action<TextEditor>>(primEditor);
+			textEditorTarget.EditingFinished.Target =
+				PrimEditorEditingFinished.CreateDelegate<Action<TextEditor>>(primEditor);
 		}
 
 		return FeedBuilder.ValueField<string>(key.Name, key.Name, key.Description, Setup, path, groupingParameters);
 	}
 
 	private static readonly MethodInfo GenerateDataFeedStringEditorInternalMethod =
-		typeof(ModConfigurationFeedBuilder).GetMethod(nameof(GenerateDataFeedStringEditorInternal), BindingFlags.Instance | BindingFlags.NonPublic)!;
+		typeof(ModConfigurationFeedBuilder).GetMethod(nameof(GenerateDataFeedStringEditorInternal),
+			BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+	private static bool PrimEditorSupportsType(Type type) => type.IsPrimitive || type == typeof(string) ||
+	                                                         type == typeof(Uri) || type == typeof(Type) ||
+	                                                         type == typeof(decimal);
 
 	public DataFeedValueField<string> GenerateDataFeedStringEditor(ModConfigurationKey key,
 		IReadOnlyList<string>? path = null,
 		IReadOnlyList<string>? groupingParameters = null) {
 		AssertChildKey(key);
+		Type valueType = key.ValueType();
+		if (!PrimEditorSupportsType(valueType))
+			throw new InvalidOperationException(
+				$"Config key type {valueType.GetNiceName()} can't be used with GenerateDataFeedStringEditor");
 
 		return (DataFeedValueField<string>)GenerateDataFeedStringEditorInternalMethod.MakeGenericMethod(key.ValueType())
 			.Invoke(this, [key, path, groupingParameters]);
 	}
+
+	private DataFeedAction GenerateDataFeedModalEditorInternal<T>(ModConfigurationKey<T> key,
+		IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
+		Type valueType = key.ValueType();
+
+		[SyncMethod(typeof(Action))]
+		void Setup(SyncDelegate<Action> field) {
+			field.Target = () => {
+				var slot = field.FindNearestParent<Slot>();
+
+				var rect = slot.OpenModalOverlay(new float2(0.5f, 0.5f), key.Name);
+				var ui = new UIBuilder(rect);
+				ui.HorizontalFooter(72f, out var footer, out var content);
+				ui.NestInto(footer);
+				ui.HorizontalLayout();
+				ui.Button("General.Cancel".AsLocaleKey()).LocalPressed += (button, _) =>
+					button.Slot.GetComponentInParents<IUIContainer>()?.CloseContainer();
+				var save = ui.Button("General.Save".AsLocaleKey());
+				// save.LocalPressed += (button, data) => button.Slot.GetComponentInParents<IUIContainer>()?.CloseContainer();
+				ui.NestInto(content);
+
+				if (Coder<T>.IsEnginePrimitive) {
+					var temp = rect.Slot.AttachComponent<ValueField<T>>();
+					temp.Value.Value = _config.GetValue(key)!;
+					ui.OverlappingLayout(0f, Alignment.MiddleCenter);
+					SyncMemberEditorBuilder.Build(temp.Value, key.Name, temp.GetSyncMemberFieldInfo("Value"), ui);
+				}
+			};
+		}
+
+		return FeedBuilder.Action(key.Name,
+			$"{key.Name} = {_config.GetValue(key).ToString() ?? MemberEditor.NULL_STRING}", key.Description, Setup,
+			path, groupingParameters);
+	}
+
+	private static readonly MethodInfo GenerateDataFeedModalEditorInternalMethod =
+		typeof(ModConfigurationFeedBuilder).GetMethod(nameof(GenerateDataFeedModalEditorInternal),
+			BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+	public DataFeedAction GenerateDataFeedModalEditor(ModConfigurationKey key,
+		IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null) {
+		AssertChildKey(key);
+
+		return (DataFeedAction)GenerateDataFeedModalEditorInternalMethod.MakeGenericMethod(key.ValueType())
+			.Invoke(this, [key, path, groupingParameters]);
+	}
+
+	public DataFeedItem GenerateDataFeedFallbackEditor(ModConfigurationKey key,
+		IReadOnlyList<string>? path = null,
+		IReadOnlyList<string>? groupingParameters = null)
+		=> PrimEditorSupportsType(key.ValueType())
+			? GenerateDataFeedStringEditor(key, path, groupingParameters)
+			: GenerateDataFeedModalEditor(key, path, groupingParameters);
 }
 
 /// <summary>
